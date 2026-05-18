@@ -40,6 +40,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip the confirmation prompt (auto-execute)",
     )
+    p.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="Print effective config (provider, model, source) before running",
+    )
     p.add_argument("-V", "--version", action="version", version=f"ocai {__version__}")
     return p
 
@@ -56,6 +62,13 @@ def main(argv: list[str] | None = None) -> int:
     cfg = Config.load()
     provider_name = args.provider or cfg.provider
     model = args.model or cfg.model
+
+    if args.debug:
+        print(
+            f"ocai: provider={provider_name!r} model={model!r} "
+            f"config_source={cfg.source!r}",
+            file=sys.stderr,
+        )
 
     try:
         provider = get_provider(provider_name, model=model)
