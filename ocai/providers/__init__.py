@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from ocai.providers.base import Provider, Suggestion, ProviderError
 
 
