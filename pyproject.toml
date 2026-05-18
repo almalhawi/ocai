@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocai"
+version = "0.1.0"
+description = "AI-powered natural-language wrapper over the OpenShift oc CLI"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "ocai contributors" }]
+dependencies = []
+
+[project.optional-dependencies]
+claude = ["anthropic>=0.40.0"]
+openai = ["openai>=1.40.0"]
+all    = ["anthropic>=0.40.0", "openai>=1.40.0"]
+
+[project.scripts]
+ocai = "ocai.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ocai*"]
