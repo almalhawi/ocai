@@ -52,7 +52,7 @@ everything works. It writes `~/.config/ocai/config.toml` so subsequent
 
 If you'd rather skip the wizard, set things up yourself.
 
-### Claude (recommended for accuracy)
+### Claude
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...

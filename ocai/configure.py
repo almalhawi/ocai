@@ -227,7 +227,7 @@ def run() -> int:
     _check_oc()
     print()
     print("Pick an AI backend:")
-    print(f"  1. {_bold('claude')}  — Anthropic, most accurate (needs API key)")
+    print(f"  1. {_bold('claude')}  — Anthropic (needs API key)")
     print(f"  2. {_bold('openai')}  — OpenAI (needs API key)")
     print(f"  3. {_bold('ollama')}  — local, free, private (needs daemon)")
     try:
