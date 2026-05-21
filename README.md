@@ -19,30 +19,38 @@ Run? [y/N]
 
 `ocai` needs the `oc` binary on your `$PATH` and Python 3.9+.
 
-Pick the AI backend(s) you want as install extras:
-
 ```bash
-# Clone and install from the homelab GitLab
+# Clone
 git clone https://gitlab.apps.ocp.home.ins/nasser/ocai.git
 cd ocai
 
-# pick one or more:
-pip install -e '.[claude]'    # Anthropic Claude
-pip install -e '.[openai]'    # OpenAI
-pip install -e '.'            # base only — required if you use Ollama
-pip install -e '.[all]'       # Claude + OpenAI
+# Create an isolated virtualenv (works on PEP 668 distros without
+# --break-system-packages — Fedora/Ubuntu 24+, recent macOS, etc.)
+python3 -m venv .venv
+source .venv/bin/activate
 
-# Ollama needs no Python extra (uses stdlib over HTTP) — just have a
-# local ollama daemon running.
+# Pick the AI backend extras you want:
+pip install -e '.[all]'       # Claude + OpenAI
+# or
+pip install -e '.[claude]'    # Anthropic Claude only
+pip install -e '.[openai]'    # OpenAI only
+pip install -e '.'            # base only — Ollama uses stdlib
+
+# Then run the interactive wizard:
+ocai configure
 ```
 
-After install, the `ocai` command is on your `$PATH`.
+`ocai configure` walks you through picking a backend, entering an API key
+(stored in your shell rc only if you opt in), choosing a model, optionally
+appending the env var to your shell, and runs a smoke test to confirm
+everything works. It writes `~/.config/ocai/config.toml` so subsequent
+`ocai` invocations know which backend to use.
 
 ---
 
-## Authenticate / configure a backend
+## Manual configuration
 
-You pick **one** of these — `ocai` is happy with any.
+If you'd rather skip the wizard, set things up yourself.
 
 ### Claude (recommended for accuracy)
 
@@ -214,6 +222,7 @@ tail -n 5 ~/.local/state/ocai/history.jsonl | jq .
 ```
 ocai/
 ├── cli.py            argparse entry point, refine loop, exit codes
+├── configure.py      `ocai configure` interactive setup wizard
 ├── config.py         loads ~/.config/ocai/config.toml + env overrides
 ├── context.py        gathers current oc project/user/cluster, best-effort
 ├── history.py        appends JSONL audit log

@@ -17,6 +17,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description="AI-powered natural-language wrapper over the OpenShift `oc` CLI.",
         epilog=(
             "Examples:\n"
+            "  ocai configure                       (interactive first-time setup)\n"
             "  ocai delete all completed builds\n"
             "  ocai get all pods on node worker-1\n"
             "  ocai deploy nginx webserver\n"
@@ -58,6 +59,15 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    # `ocai configure` is a subcommand-style entry point. Intercepting before
+    # argparse keeps the natural-language request flow ("ocai delete all …")
+    # unchanged for every other call.
+    if argv and argv[0] == "configure":
+        from ocai.configure import run as run_configure
+        return run_configure()
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 
