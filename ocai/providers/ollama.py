@@ -19,7 +19,7 @@ class OllamaProvider(Provider):
         self._model = model or os.environ.get("OCAI_OLLAMA_MODEL", DEFAULT_MODEL)
         self._host = (host or os.environ.get("OLLAMA_HOST", DEFAULT_HOST)).rstrip("/")
 
-    def suggest(self, request: str) -> Suggestion:
+    def suggest(self, request: str, *, context: str | None = None) -> Suggestion:
         payload = {
             "model": self._model,
             "stream": False,
@@ -27,7 +27,7 @@ class OllamaProvider(Provider):
             "options": {"temperature": 0.1},
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": build_user_message(request)},
+                {"role": "user", "content": build_user_message(request, context=context)},
             ],
         }
         req = urllib.request.Request(

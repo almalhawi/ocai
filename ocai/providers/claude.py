@@ -24,7 +24,7 @@ class ClaudeProvider(Provider):
         self._client = Anthropic(api_key=api_key)
         self._model = model or os.environ.get("OCAI_CLAUDE_MODEL", DEFAULT_MODEL)
 
-    def suggest(self, request: str) -> Suggestion:
+    def suggest(self, request: str, *, context: str | None = None) -> Suggestion:
         resp = self._client.messages.create(
             model=self._model,
             max_tokens=512,
@@ -35,7 +35,9 @@ class ClaudeProvider(Provider):
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
-            messages=[{"role": "user", "content": build_user_message(request)}],
+            messages=[
+                {"role": "user", "content": build_user_message(request, context=context)}
+            ],
         )
         text_blocks = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
         if not text_blocks:

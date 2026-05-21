@@ -4,6 +4,8 @@ import argparse
 import sys
 
 from ocai import __version__
+from ocai import context as cluster_context
+from ocai import history
 from ocai.config import Config
 from ocai.executor import ExecutionRefused, execute
 from ocai.providers import ProviderError, get_provider
@@ -46,6 +48,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print effective config (provider, model, source) before running",
     )
+    p.add_argument(
+        "--no-context",
+        action="store_true",
+        help="Don't gather current oc context (project/user) to send with the prompt",
+    )
     p.add_argument("-V", "--version", action="version", version=f"ocai {__version__}")
     return p
 
@@ -70,19 +77,61 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
 
+    ctx = None if args.no_context else cluster_context.gather()
+    if args.debug and ctx:
+        print(f"ocai: cluster context:\n{ctx}", file=sys.stderr)
+
     try:
         provider = get_provider(provider_name, model=model)
-        suggestion = provider.suggest(request)
     except ProviderError as e:
         print(f"ocai: provider error: {e}", file=sys.stderr)
         return 1
 
-    try:
-        result = execute(suggestion, dry_run=args.dry_run, auto=args.yes)
-    except ExecutionRefused as e:
-        print(f"ocai: refusing to execute: {e}", file=sys.stderr)
-        return 1
-    return result.returncode
+    # The refine loop lets the user iterate on the suggested command without
+    # retyping the whole request. Capped to avoid runaway API calls.
+    effective_request = request
+    last_command: str | None = None
+    for _attempt in range(5):
+        try:
+            suggestion = provider.suggest(effective_request, context=ctx)
+        except ProviderError as e:
+            print(f"ocai: provider error: {e}", file=sys.stderr)
+            return 1
+
+        log_entry: dict = {
+            "prompt": effective_request,
+            "command": suggestion.command,
+            "destructive": suggestion.destructive,
+            "provider": provider_name,
+            "model": model,
+        }
+
+        try:
+            result = execute(suggestion, dry_run=args.dry_run, auto=args.yes)
+        except ExecutionRefused as e:
+            print(f"ocai: refusing to execute: {e}", file=sys.stderr)
+            history.record({**log_entry, "executed": False, "refused": str(e)})
+            return 1
+
+        if result.refine:
+            history.record({**log_entry, "executed": False, "refined": result.refine})
+            last_command = suggestion.command
+            effective_request = (
+                f"{request}\n"
+                f"Previous attempt: {last_command}\n"
+                f"Refinement: {result.refine}"
+            )
+            continue
+
+        history.record({
+            **log_entry,
+            "executed": result.executed,
+            "returncode": result.returncode if result.executed else None,
+        })
+        return result.returncode
+
+    print("ocai: too many refinement attempts; aborting.", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

@@ -128,6 +128,8 @@ ocai --provider claude --model claude-opus-4-7 explain the operator pattern
 | `--model MODEL` | Override the model name for the chosen provider |
 | `-n`, `--dry-run` | Print the proposed command, never execute |
 | `-y`, `--yes` | Auto-confirm — skip the y/N prompt |
+| `--no-context` | Don't gather `oc` context (project/user) before calling the model |
+| `-d`, `--debug` | Print effective config and gathered context to stderr |
 | `-V`, `--version` | Print version |
 | `-h`, `--help` | Help |
 
@@ -140,15 +142,23 @@ Every request runs through the same gate:
 1. The model is constrained to return a JSON object containing **one** shell
    command that uses `oc` (pipelines with `jq`, `xargs`, etc. are allowed
    when needed for bulk operations).
-2. `ocai` parses that JSON, verifies the command actually invokes `oc`, and
-   refuses to run anything that doesn't. `oc` is required as a literal token —
-   no plain `rm`, `curl`, `kubectl`, etc.
-3. It prints the command and a one-line explanation, color-coded:
+2. `ocai` parses that JSON, then validates the command:
+   - Rejects shell control operators that chain commands: `;`, `&&`, `||`, `&`.
+   - Rejects command/process substitution: `` ` ` ``, `$(...)`, `<(...)`, `>(...)`.
+   - Splits on `|` and requires every pipeline segment's leading command to be
+     in an allowlist (`oc`, `jq`, `xargs`, `grep`, `awk`, `sed`, `head`,
+     `tail`, `sort`, `uniq`, `wc`, `cut`, `tr`, `column`, `tee`, `cat`).
+   - Requires at least one segment to actually be `oc`.
+3. Decides destructive vs read-only from **both** the model's flag and a
+   static check on the `oc` verb. Either source can mark a command
+   destructive — the model can't downgrade a real `oc delete` to read-only.
+4. Prints the command and a one-line explanation, color-coded:
    - <span style="color:green">**read-only**</span> — get, describe, logs, status, …
    - <span style="color:red">**destructive**</span> — delete, apply, create, scale, patch, …
-4. It prompts `Run? [Y/n]` for read-only or `Run? [y/N]` for destructive.
-   The default matches the color — Enter accepts the safe default.
-5. Only after you confirm does it shell out.
+5. Prompts `Run? [Y/n/r]` for read-only or `Run? [y/N/r]` for destructive.
+   The default (Enter) matches the color. `r` lets you refine the request
+   ("only in the prod namespace") and re-prompt without retyping.
+6. Only after you confirm does it shell out.
 
 Override the prompt with `-y` (auto-yes) or skip execution entirely with `-n`
 (dry-run).
@@ -171,10 +181,12 @@ The model returned something that isn't an `oc` command. Try rephrasing — and
 file an issue with the prompt that triggered it.
 
 **The proposed command is wrong**
-v1 sends only your prompt to the model — no cluster discovery. If you ask
-about resources whose schema the model doesn't know (custom CRDs, unusual
-field names), accuracy drops. Use `-n` to inspect, edit by hand, run with
-plain `oc`.
+`ocai` sends your current `oc` context (project, user, cluster API) along
+with the prompt, but it doesn't enumerate CRDs or arbitrary cluster state.
+If you ask about resources whose schema the model doesn't know (uncommon
+CRDs, unusual field names), accuracy drops. Hit `r` at the prompt to refine
+("…and only in the openshift-monitoring namespace"), use `-n` to inspect and
+edit by hand, or fall back to plain `oc`.
 
 **I want to see what command will run without burning a real call**
 There isn't an offline mode — the AI is required to translate. Use `-n` to
@@ -182,12 +194,29 @@ get the translation without executing.
 
 ---
 
+## History / audit log
+
+Every invocation appends a JSONL record to
+`$XDG_STATE_HOME/ocai/history.jsonl` (default: `~/.local/state/ocai/history.jsonl`).
+Fields: `ts`, `prompt`, `command`, `destructive`, `provider`, `model`,
+`executed`, plus `returncode`, `refused`, or `refined` depending on outcome.
+
+Tail it to see what you've been doing:
+
+```bash
+tail -n 5 ~/.local/state/ocai/history.jsonl | jq .
+```
+
+---
+
 ## Architecture
 
 ```
 ocai/
-├── cli.py            argparse entry point, exit codes
+├── cli.py            argparse entry point, refine loop, exit codes
 ├── config.py         loads ~/.config/ocai/config.toml + env overrides
+├── context.py        gathers current oc project/user/cluster, best-effort
+├── history.py        appends JSONL audit log
 ├── prompts.py        system prompt + few-shot examples + JSON schema
 ├── executor.py       validates suggestion, renders, prompts, runs
 └── providers/
@@ -200,6 +229,50 @@ ocai/
 The provider abstraction is a single `suggest(request: str) -> Suggestion`
 method. Adding a new backend means dropping in one file under
 `ocai/providers/` and registering it in `ocai/providers/__init__.py`.
+
+---
+
+## Disclaimer
+
+`ocai` is an independent open-source project. It is **not affiliated with,
+endorsed by, sponsored by, or supported by Red Hat, Inc.** "OpenShift",
+"oc", and "Red Hat" are trademarks of Red Hat, Inc. The `oc` CLI itself is
+distributed separately by Red Hat; `ocai` only invokes the binary you
+already have installed.
+
+`ocai` is likewise not affiliated with Anthropic, OpenAI, or Ollama — those
+are configurable backends and your use of them is subject to their own
+terms of service.
+
+---
+
+## Security
+
+A few things to keep in mind before pointing `ocai` at a production
+cluster:
+
+- **Your prompts are sent to a third party** (Claude or OpenAI) unless
+  you use the Ollama backend, which runs locally. Treat the prompt the
+  same way you'd treat any text pasted into a chat UI — don't put
+  secrets (kubeconfigs, tokens, passwords) in it.
+- The cluster context sent with each prompt includes your current user,
+  project, and cluster API URL. Use `--no-context` to suppress it.
+- **Validation is a guard, not a sandbox.** `ocai` parses the model's
+  output, rejects shell metacharacters that allow command chaining, and
+  enforces an allowlist of pipeline commands — but the validated
+  command still runs in your shell with your credentials. A confident
+  model plus loose cluster RBAC can still hurt you.
+- **Even valid `oc` commands can be destructive.** `oc delete`, `oc apply`,
+  `oc exec`, and `oc adm` can all cause data loss or cluster impact.
+  Use `-n` (dry-run) on anything you're not certain about. The default-N
+  prompt on destructive verbs is your last line of defense — not a
+  promise that anything that passed the prompt is safe.
+- The audit log at `~/.local/state/ocai/history.jsonl` contains every
+  prompt and command. Treat it like shell history: protect or clear it
+  as appropriate for your environment.
+- This tool ships under the MIT license **as-is, without warranty**.
+  The authors aren't responsible for what your cluster does after
+  running a command this tool suggests.
 
 ---
 

@@ -24,13 +24,13 @@ class OpenAIProvider(Provider):
         self._client = OpenAI(api_key=api_key)
         self._model = model or os.environ.get("OCAI_OPENAI_MODEL", DEFAULT_MODEL)
 
-    def suggest(self, request: str) -> Suggestion:
+    def suggest(self, request: str, *, context: str | None = None) -> Suggestion:
         resp = self._client.chat.completions.create(
             model=self._model,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": build_user_message(request)},
+                {"role": "user", "content": build_user_message(request, context=context)},
             ],
         )
         content = resp.choices[0].message.content

@@ -32,5 +32,7 @@ User: how many pods are crashlooping
 """
 
 
-def build_user_message(request: str) -> str:
+def build_user_message(request: str, *, context: str | None = None) -> str:
+    if context:
+        return f"Cluster context:\n{context}\n\nUser: {request.strip()}"
     return f"User: {request.strip()}"
