@@ -8,8 +8,8 @@ version = "0.1.0"
 description = "AI-powered natural-language wrapper over the OpenShift oc CLI"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
-authors = [{ name = "ocai contributors" }]
+license = { text = "Apache-2.0" }
+authors = [{ name = "Nasser Almalhawi", email = "almalhawi.nasser@gmail.com" }]
 dependencies = []
 
 [project.optional-dependencies]

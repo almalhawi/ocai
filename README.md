@@ -279,7 +279,7 @@ cluster:
 - The audit log at `~/.local/state/ocai/history.jsonl` contains every
   prompt and command. Treat it like shell history: protect or clear it
   as appropriate for your environment.
-- This tool ships under the MIT license **as-is, without warranty**.
+- This tool ships under the Apache 2.0 license **as-is, without warranty**.
   The authors aren't responsible for what your cluster does after
   running a command this tool suggests.
 
@@ -287,4 +287,4 @@ cluster:
 
 ## License
 
-MIT.
+Apache License 2.0. See [LICENSE](LICENSE).
