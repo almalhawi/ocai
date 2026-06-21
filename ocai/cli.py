@@ -14,7 +14,10 @@ from ocai.providers import ProviderError, get_provider
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="ocai",
-        description="AI-powered natural-language wrapper over the OpenShift `oc` CLI.",
+        description=(
+            "AI-powered natural-language wrapper over the OpenShift `oc` CLI.\n"
+            "By Nasser Almalhawi <almalhawi.nasser@gmail.com>"
+        ),
         epilog=(
             "Examples:\n"
             "  ocai configure                       (interactive first-time setup)\n"
@@ -54,7 +57,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Don't gather current oc context (project/user) to send with the prompt",
     )
-    p.add_argument("-V", "--version", action="version", version=f"ocai {__version__}")
+    p.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"ocai {__version__} — by Nasser Almalhawi <almalhawi.nasser@gmail.com>",
+    )
     return p
 
 
