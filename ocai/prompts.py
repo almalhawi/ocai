@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 SYSTEM_PROMPT = """You translate a user's natural-language request into a single shell command that uses the OpenShift `oc` CLI.
 
 Rules:
